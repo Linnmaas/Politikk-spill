@@ -1,144 +1,562 @@
 <!doctype html>
 <html lang="no">
+<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Statsbudsjett-spillet</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-  header, footer { opacity:.8; font-size:.9rem }
-  .card { border:1px solid #ddd; border-radius:12px; padding:1.25rem; box-shadow:0 2px 10px rgba(0,0,0,.06) }
-  .title { font-weight:700; font-size:1.15rem; margin-bottom:.5rem }
-  .question { margin:1rem 0 }
-  .choices { display:grid; gap:.5rem; margin-top:1rem }
-  button { padding:.8rem 1rem; border-radius:10px; border:1px solid #ccc; cursor:pointer }
-  .meta { display:flex; gap:1rem; margin:.5rem 0 1rem; flex-wrap:wrap }
-  .tag { background:#f4f4f4; border-radius:999px; padding:.2rem .6rem; font-size:.85rem }
-  .bar { height:10px; background:#eee; border-radius:999px; overflow:hidden }
-  .bar > div { height:100%; background:#4a90e2; width:0% }
+  :root { --fg:#111; --muted:#666; --border:#e5e7eb; --bg:#fff; --pill:#f3f4f6; --accent:#2563eb; }
+  * { box-sizing:border-box }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:var(--fg); background:var(--bg);
+         max-width: 880px; margin: 24px auto; padding: 0 16px; }
+  header, footer { font-size:.9rem; color:var(--muted) }
+  .wrap { display:grid; gap:14px }
+  .meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  .tag { background:var(--pill); border:1px solid var(--border); padding:.25rem .6rem; border-radius:999px }
+  .bar { height:10px; background:#eef2ff; border-radius:999px; overflow:hidden; border:1px solid var(--border) }
+  .bar > div { height:100%; background:var(--accent); width:50% }
+  .card { border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,.06) }
+  .title { font-weight:800; font-size:1.2rem; margin-bottom:.25rem }
+  .question { margin:.8rem 0 1rem; font-weight:600 }
+  .choices { display:grid; gap:.6rem }
+  button.choice { padding:.9rem 1rem; border-radius:12px; border:1px solid var(--border); background:#fff; cursor:pointer; text-align:left }
+  button.choice:hover { border-color:#c7d2fe; background:#f8fafc }
+  .small { font-size:.9rem; color:var(--muted) }
+  .hr { height:1px; background:var(--border); margin:.6rem 0 }
+  .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#111; color:#fff; border-radius:6px; padding:.05rem .35rem; font-size:.85rem }
 </style>
-<header>
+</head>
+<body>
+<header class="wrap">
   <div class="meta">
-    <div class="tag">Budsjett: <span id="budget">100</span> mrd</div>
-    <div class="tag">Støtte: <span id="support">50</span>/100</div>
+    <div class="tag">Budsjett: <strong><span id="budget">100</span> mrd</strong></div>
+    <div class="tag">Støtte: <strong><span id="support">50</span>/100</strong></div>
+    <div class="tag small">Restart: <span class="kbd">R</span></div>
   </div>
   <div class="bar"><div id="supportBar"></div></div>
 </header>
 
-<main class="card">
+<main class="card" id="card">
   <div class="title" id="cardTitle"></div>
-  <div id="cardText"></div>
+  <div id="cardText" class="small"></div>
   <div class="question" id="cardQuestion"></div>
   <div class="choices">
-    <button id="btnA"></button>
-    <button id="btnB"></button>
-    <button id="btnC"></button>
+    <button class="choice" id="btnA"></button>
+    <button class="choice" id="btnB"></button>
+    <button class="choice" id="btnC"></button>
   </div>
+  <div class="hr"></div>
+  <div class="small">Tipset: Snakk i gruppa om <em>pliktetikk</em> (regler/rettigheter), <em>konsekvensetikk</em> (nytte for flest), og <em>ansvarsetikk</em> (hensyn til framtid og sårbare) før dere velger.</div>
 </main>
 
-<footer>
-  Tips: trykk «R» for å starte på nytt. Lag dine egne kort ved å redigere JSON-en i koden.
+<footer style="margin-top:12px">
+  © Statsbudsjett-spillet. Laget for undervisning. Justér kortene i koden (CARDS-objektet).
 </footer>
 
 <script>
-// === Data ===
-// Hvert kort har: id, title, text, question, choices[A|B|C] med {label, next, budgetDelta, supportDelta}
+/**
+ * 40 kort totalt: 27 dilemma (1–27) + 13 sluttkort (28–40)
+ * Hvert kort: {title, text, question, choices:{A|B|C:{label, next, budgetDelta, supportDelta}}}
+ */
+
 const CARDS = {
+  // ===== DILEMMA 1–27 =====
   "1": {
     title: "Sykehjemsplasser",
-    text: "Det er for få sykehjemsplasser. Marie (80) sitter alene mesteparten av dagen. 20 mrd gir verdig alderdom til flere, men betyr mindre penger til psykiatri og ungdom.",
+    text: "Det er for få sykehjemsplasser. Marie (80) sitter alene mesteparten av dagen. Å bygge ut gir verdig alderdom, men 20 mrd må tas fra andre områder som psykiatri, skole eller klima.",
     question: "Skal dere bruke hele summen, gi halvparten, eller ingenting?",
     choices: {
-      A: { label: "A) Hele summen (−20 mrd, +4 støtte blant eldre)", next: "2", budgetDelta: -20, supportDelta: +4 },
-      B: { label: "B) Halvparten (−10 mrd, +2 støtte, men ventelister)", next: "3", budgetDelta: -10, supportDelta: +2 },
-      C: { label: "C) Ingenting (0 mrd, −5 støtte blant eldre)", next: "4", budgetDelta: 0, supportDelta: -5 }
+      A:{label:"A) Hele summen (−20 mrd, +4 støtte eldre/pårørende)", next:"2", budgetDelta:-20, supportDelta:+4},
+      B:{label:"B) Halvparten (−10 mrd, +2 støtte – men ventelister)", next:"3", budgetDelta:-10, supportDelta:+2},
+      C:{label:"C) Ingenting (0 mrd, −6 støtte eldre/pårørende)", next:"4", budgetDelta:0, supportDelta:-6}
     }
   },
+
   "2": {
     title: "Psykisk helse under press",
-    text: "Pga. sykehjemssatsing må psykiatrien kutte. Emil (16) må vente lenge på BUP. Kutter dere kultur, lar kuttene stå, eller øker skatt for de rikeste?",
+    text: "Siden dere satset på sykehjem, må psykiatrien kutte. Emil (16) må vente på BUP. Dere kan kutte kultur, la kuttene stå (risiko for frafall/ufør), eller øke skatt på de rikeste.",
     question: "Hva prioriterer dere nå?",
     choices: {
-      A: { label: "A) Ta fra kultur (+0 mrd, −3 støtte blant unge i idrett/kultur)", next: "5", budgetDelta: 0, supportDelta: -3 },
-      B: { label: "B) La kuttene stå (+0 mrd, −6 støtte blant unge)", next: "6", budgetDelta: 0, supportDelta: -6 },
-      C: { label: "C) Øk skatt på de rikeste (+30 mrd, +2 støtte rettferdighet)", next: "7", budgetDelta: +30, supportDelta: +2 }
+      A:{label:"A) Ta fra kultur (+0 mrd, −3 støtte idrett/kultur)", next:"5", budgetDelta:0, supportDelta:-3},
+      B:{label:"B) La kuttene stå (+0 mrd, −7 støtte blant unge/foreldre)", next:"6", budgetDelta:0, supportDelta:-7},
+      C:{label:"C) Øk skatt på de rikeste (+30 mrd, +3 støtte rettferdighet)", next:"7", budgetDelta:+30, supportDelta:+3}
     }
   },
+
   "3": {
     title: "Delvis sykehjem",
-    text: "Noen får plass, andre må vente. ‘Sykehjemslotteri’ i media. Lån, kutt i forsvar, eller snu og satse psykiatri?",
-    question: "Hva gjør dere?",
+    text: "Noen får plass, andre må vente. Media snakker om «sykehjemslotteri». Lån gir rask utbygging men gjeld, kutt i forsvar svekker beredskap, psykiatrisatsing hjelper unge nå.",
+    question: "Lån, kutt i forsvar, eller snu til psykiatri?",
     choices: {
-      A: { label: "A) Lån (+0 nå, men senere risiko)", next: "8", budgetDelta: 0, supportDelta: +1 },
-      B: { label: "B) Kutt forsvar (+10 mrd, −4 støtte trygghet)", next: "9", budgetDelta: +10, supportDelta: -4 },
-      C: { label: "C) Psykiatri (+0 mrd, +4 støtte blant unge)", next: "10", budgetDelta: 0, supportDelta: +4 }
+      A:{label:"A) Lån (+0 mrd nå, +1 støtte – men gjeld senere)", next:"8", budgetDelta:0, supportDelta:+1},
+      B:{label:"B) Kutt i forsvar (+10 mrd, −4 støtte trygghet)", next:"9", budgetDelta:+10, supportDelta:-4},
+      C:{label:"C) Prioriter psykiatri (0 mrd, +4 støtte unge)", next:"10", budgetDelta:0, supportDelta:+4}
     }
   },
+
   "4": {
     title: "Ingen nye sykehjem",
-    text: "Eldreomsorgen står stille og det blir protester. Øke hjemmesykepleie, satse ungdomshelse eller gratis skolemat?",
+    text: "Eldreomsorgen står stille. Pensjonistforbundet demonstrerer. Hjemmesykepleie er billigere men press for ansatte. Ungdomshelse gir tidlig hjelp. Skolemat bedrer læring og sosial utjevning.",
     question: "Hva prioriterer dere?",
     choices: {
-      A: { label: "A) Hjemmesykepleie (−8 mrd, +3 støtte eldre)", next: "11", budgetDelta: -8, supportDelta: +3 },
-      B: { label: "B) Ungdomshelse (−6 mrd, +4 støtte unge)", next: "12", budgetDelta: -6, supportDelta: +4 },
-      C: { label: "C) Skolemat (−10 mrd, +3 støtte foreldre)", next: "13", budgetDelta: -10, supportDelta: +3 }
+      A:{label:"A) Øk hjemmesykepleie (−8 mrd, +3 støtte eldre)", next:"11", budgetDelta:-8, supportDelta:+3},
+      B:{label:"B) Ungdomshelse (−6 mrd, +4 støtte unge)", next:"12", budgetDelta:-6, supportDelta:+4},
+      C:{label:"C) Gratis skolemat (−10 mrd, +3 støtte foreldre/elever)", next:"13", budgetDelta:-10, supportDelta:+3}
     }
   },
+
   "5": {
     title: "Kulturkutt",
-    text: "Idrettslag og korps mister støtte. Forebygger mindre, men frigjør midler. Flytte mer fra klima? Eller ta fra skole?",
-    question: "Skal dere stå i kuttene, ta fra klima, eller ta fra utdanning?",
+    text: "Idrettslag og korps mister støtte. Forebygging svekkes, men midler frigjøres. Ta mer fra klima, eller ta fra skole – eller stå i kuttene?",
+    question: "Hva vil dere gjøre for å finansiere psykiatrien?",
     choices: {
-      A: { label: "A) La kuttene stå (+0 mrd, −2 støtte fellesskap)", next: "14", budgetDelta: 0, supportDelta: -2 },
-      B: { label: "B) Ta fra klima (+10 mrd, −6 støtte blant unge/miljø)", next: "15", budgetDelta: +10, supportDelta: -6 },
-      C: { label: "C) Ta fra utdanning (+10 mrd, −5 støtte foreldre/elever)", next: "16", budgetDelta: +10, supportDelta: -5 }
+      A:{label:"A) La kuttene stå (0 mrd, −2 støtte fellesskap)", next:"14", budgetDelta:0, supportDelta:-2},
+      B:{label:"B) Kutt i klima (+10 mrd, −6 støtte unge/miljø)", next:"15", budgetDelta:+10, supportDelta:-6},
+      C:{label:"C) Kutt i utdanning (+10 mrd, −5 støtte foreldre/elever)", next:"16", budgetDelta:+10, supportDelta:-5}
     }
   },
-  // … legg inn flere kort her etter samme mal …
-  // Eksempel på et sluttscenario:
-  "END_BALANSE": {
-    title: "Slutt: Balanse",
-    text: "Dere klarte å holde budsjettet over 0 mrd og støtten rundt 50+. Ikke alt ble perfekt, men samfunnet står støtt.",
-    question: "Trykk en tast for å starte på nytt.",
+
+  "6": {
+    title: "Lang ventetid i psykiatrien",
+    text: "Ventelistene øker. Flere dropper ut. Forebygging via politi (dyrt) eller kultur (fellesskap) kan hjelpe. Eller dere kan gjøre ingenting og ta politisk risiko.",
+    question: "Hva velger dere?",
     choices: {
-      A: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 },
-      B: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 },
-      C: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 }
+      A:{label:"A) Satse på politi (−8 mrd, +2 støtte trygghet)", next:"17", budgetDelta:-8, supportDelta:+2},
+      B:{label:"B) Satse på kultur (−5 mrd, +2 støtte fellesskap)", next:"18", budgetDelta:-5, supportDelta:+2},
+      C:{label:"C) Ingenting (0 mrd, −6 støtte)", next:"19", budgetDelta:0, supportDelta:-6}
+    }
+  },
+
+ "7": {
+    title: "Skatt på de rikeste",
+    text: "Ekstra 30 mrd inn, men enkelte bedrifter flagger ut. Brukes midlene best på klima (langsiktig), utdanning (kompetanse), eller helse (akutt)?",
+    question: "Hvor setter dere pengene?",
+    choices: {
+      A:{label:"A) Klima (−25 mrd fra potten → netto +5, +4 støtte unge)", next:"20", budgetDelta:+5, supportDelta:+4},
+      B:{label:"B) Utdanning (−20 mrd → netto +10, +3 støtte foreldre/elever)", next:"21", budgetDelta:+10, supportDelta:+3},
+      C:{label:"C) Helse (−25 mrd → netto +5, +3 støtte eldre/pårørende)", next:"22", budgetDelta:+5, supportDelta:+3}
+    }
+  },
+
+  "8": {
+    title: "Statlig lån",
+    text: "Dere lånte for utbygging. Eldre får plass, men gjelden må ned senere. Vil dere bruke mer lånte midler på klima, utdanning, eller helse?",
+    question: "Hva prioriterer dere med lånefinansiering?",
+    choices: {
+      A:{label:"A) Klima (−25 mrd, +4 støtte unge, gjeldsrisiko)", next:"20", budgetDelta:-25, supportDelta:+4},
+      B:{label:"B) Utdanning (−20 mrd, +3 støtte foreldre/elever)", next:"21", budgetDelta:-20, supportDelta:+3},
+      C:{label:"C) Helse (−25 mrd, +3 støtte eldre/pårørende)", next:"22", budgetDelta:-25, supportDelta:+3}
+    }
+  },
+
+  "9": {
+    title: "Forsvarskutt",
+    text: "Færre øvelser og lavere beredskap. Velferd får mer, men trygghetsfølelsen synker. Vil dere kompensere med politi, bygge fellesskap via kultur, eller la det stå?",
+    question: "Hvordan håndterer dere lavere beredskap?",
+    choices: {
+      A:{label:"A) Styrk politiet (−8 mrd, +3 støtte trygghet)", next:"17", budgetDelta:-8, supportDelta:+3},
+      B:{label:"B) Bygg kultur/fellesskap (−5 mrd, +2 støtte)", next:"18", budgetDelta:-5, supportDelta:+2},
+      C:{label:"C) La stå (0 mrd, −4 støtte)", next:"19", budgetDelta:0, supportDelta:-4}
+    }
+  },
+
+  "10": {
+    title: "Psykiatrisatsing",
+    text: "Emil (16) får hjelp, men Marie (80) venter. Full psykiatri gir avklaring, dele mellom begge er kompromiss med venting, gå tilbake til eldre gir retningsskifte.",
+    question: "Hva gjør dere videre?",
+    choices: {
+      A:{label:"A) Full psykiatri (0 mrd, +2 støtte unge, −2 eldre)", next:"6", budgetDelta:0, supportDelta:+0},
+      B:{label:"B) Dele mellom (−10 mrd, +1 støtte begge, fortsatt venting)", next:"3", budgetDelta:-10, supportDelta:+1},
+      C:{label:"C) Tilbake til eldre (−20 mrd, +3 støtte eldre, −2 unge)", next:"1", budgetDelta:-20, supportDelta:+1}
+    }
+  },
+
+  "11": {
+    title: "Hjemmesykepleie",
+    text: "Flere får hjelp hjemme, men ansatte er presset og varsler streik. Kompensér fra forsvar, fra klima, eller gi opp økningen?",
+    question: "Hvordan finansierer dere dette?",
+    choices: {
+      A:{label:"A) Ta fra forsvar (+10 mrd, −4 støtte trygghet)", next:"9", budgetDelta:+10, supportDelta:-4},
+      B:{label:"B) Ta fra klima (+10 mrd, −5 støtte unge)", next:"20", budgetDelta:+10, supportDelta:-5},
+      C:{label:"C) Gi opp (0 mrd, −3 støtte eldre)", next:"19", budgetDelta:0, supportDelta:-3}
+    }
+  },
+
+  "12": {
+    title: "Ungdomshelse",
+    text: "Flere helsesykepleiere i skolen. Vilja (14) får hjelp, men eldreomsorg står. Fortsette for ungdom, hente fra kultur, eller fra klima?",
+    question: "Hva prioriterer dere?",
+    choices: {
+      A:{label:"A) Fortsett ungdom (−6 mrd/år, +3 støtte unge)", next:"6", budgetDelta:-6, supportDelta:+3},
+      B:{label:"B) Ta fra kultur (+0 mrd, −2 støtte fellesskap)", next:"5", budgetDelta:0, supportDelta:-2},
+      C:{label:"C) Ta fra klima (+10 mrd, −5 støtte unge)", next:"20", budgetDelta:+10, supportDelta:-5}
+    }
+  },
+
+  "13": {
+    title: "Gratis skolemat",
+    text: "Bedre konsentrasjon og utjevning, men kultur kuttes. La kulturen kuttes, ta fra forsvar, eller fra klima?",
+    question: "Hvor tar dere pengene fra?",
+    choices: {
+      A:{label:"A) Kultur (0 mrd, −3 støtte kultur/idrett)", next:"5", budgetDelta:0, supportDelta:-3},
+      B:{label:"B) Forsvar (+10 mrd, −4 støtte trygghet)", next:"9", budgetDelta:+10, supportDelta:-4},
+      C:{label:"C) Klima (+10 mrd, −5 støtte unge)", next:"20", budgetDelta:+10, supportDelta:-5}
+    }
+  },
+
+  "14": {
+    title: "Kultur under press",
+    text: "Ungdomsklubber stenger. Noen driver gatelangs. Politi kan gi kortsiktig trygghet, psykiatri hjelper årsak, eller dere lar det være.",
+    question: "Hva er deres neste steg?",
+    choices: {
+      A:{label:"A) Politi (−8 mrd, +3 støtte trygghet)", next:"17", budgetDelta:-8, supportDelta:+3},
+      B:{label:"B) Psykiatri (−15 mrd, +4 støtte unge)", next:"6", budgetDelta:-15, supportDelta:+4},
+      C:{label:"C) La være (0 mrd, −4 støtte)", next:"19", budgetDelta:0, supportDelta:-4}
+    }
+  },
+
+  "15": {
+    title: "Klimamål utsettes",
+    text: "Dere tok fra klima. Utslippskutt går saktere. Gratis busskort til ungdom kan hjelpe, eller sats på utdanning for grønn kompetanse – eller la være.",
+    question: "Hva velger dere nå?",
+    choices: {
+      A:{label:"A) Gratis busskort (−10 mrd, +3 støtte unge)", next:"23", budgetDelta:-10, supportDelta:+3},
+      B:{label:"B) Utdanning grønn kompetanse (−20 mrd, +3 støtte foreldre/unge)", next:"21", budgetDelta:-20, supportDelta:+3},
+      C:{label:"C) Ingenting (0 mrd, −5 støtte unge)", next:"19", budgetDelta:0, supportDelta:-5}
+    }
+  },
+
+  "16": {
+    title: "Skolen under press",
+    text: "Kutt i utdanning gir dårlige bygg og lærermangel. Reparer bygg, ansett lærere, eller prioritér helse i stedet.",
+    question: "Hva prioriterer dere?",
+    choices: {
+      A:{label:"A) Bygg (−15 mrd, +3 støtte foreldre/elever)", next:"24", budgetDelta:-15, supportDelta:+3},
+      B:{label:"B) Lærere (−15 mrd, +3 støtte kvalitet)", next:"25", budgetDelta:-15, supportDelta:+3},
+      C:{label:"C) Helse (−20 mrd, +3 støtte eldre/alle)", next:"22", budgetDelta:-20, supportDelta:+3}
+    }
+  },
+
+  "17": {
+    title: "Politisatsing",
+    text: "Flere saker oppklares, men kultur og velferd må kuttes for å finansiere. Kutt fritidskort, kutt sommerjobber, eller ikke kompensere og leve med underskudd?",
+    question: "Hvordan finansierer dere politiet?",
+    choices: {
+      A:{label:"A) Kutt fritidskort (+5 mrd, −3 støtte inkludering)", next:"26", budgetDelta:+5, supportDelta:-3},
+      B:{label:"B) Kutt sommerjobber (+5 mrd, −3 støtte arbeid/ungdom)", next:"27", budgetDelta:+5, supportDelta:-3},
+      C:{label:"C) Ikke kompensere (0 mrd, −3 støtte ansvarlighet)", next:"19", budgetDelta:0, supportDelta:-3}
+    }
+  },
+
+  "18": {
+    title: "Kulturtilbud reddet",
+    text: "Dere reddet kultur (fellesskap/forebygging), men måtte kutte i psykiatri. Hente fra forsvar, hente fra klima, eller la kuttene stå?",
+    question: "Hva gjør dere?",
+    choices: {
+      A:{label:"A) Ta fra forsvar (+10 mrd, −4 støtte trygghet)", next:"9", budgetDelta:+10, supportDelta:-4},
+      B:{label:"B) Ta fra klima (+10 mrd, −5 støtte unge)", next:"20", budgetDelta:+10, supportDelta:-5},
+      C:{label:"C) La stå (0 mrd, −4 støtte unge)", next:"19", budgetDelta:0, supportDelta:-4}
+    }
+  },
+
+  "19": {
+    title: "Tillitskrise",
+    text: "Dere har latt problemer vokse. Oppslutningen faller. Vinne tilbake unge via klima, pensjonister via eldreomsorg, eller foreldre via skole?",
+    question: "Hva er deres snuoperasjon?",
+    choices: {
+      A:{label:"A) Klima (−25 mrd, +5 støtte unge)", next:"20", budgetDelta:-25, supportDelta:+5},
+      B:{label:"B) Eldre (−20 mrd, +5 støtte eldre/pårørende)", next:"1", budgetDelta:-20, supportDelta:+5},
+      C:{label:"C) Skole (−20 mrd, +5 støtte foreldre/elever)", next:"21", budgetDelta:-20, supportDelta:+5}
+    }
+  },
+
+  "20": {
+    title: "Klimasatsing",
+    text: "25 mrd til grønn energi/transport. Utslipp ned, men press på helse. Kutt sykehjem, kutt psykiatri, eller lån?",
+    question: "Hvordan balanserer dere klima og helse?",
+    choices: {
+      A:{label:"A) Kutt sykehjem (+10 mrd, −5 støtte eldre)", next:"4", budgetDelta:+10, supportDelta:-5},
+      B:{label:"B) Kutt psykiatri (+15 mrd, −6 støtte unge)", next:"6", budgetDelta:+15, supportDelta:-6},
+      C:{label:"C) Lån (0 mrd nå, +1 støtte, gjeldsrisiko)", next:"8", budgetDelta:0, supportDelta:+1}
+    }
+  },
+
+  "21": {
+    title: "Utdanning",
+    text: "Satsing på bygg, lærere og grønn kompetanse. Press på klima/helse. Kutt klima, kutt helse, eller lån?",
+    question: "Hva prioriterer dere ned?",
+    choices: {
+      A:{label:"A) Kutt klima (+10 mrd, −5 støtte unge)", next:"15", budgetDelta:+10, supportDelta:-5},
+      B:{label:"B) Kutt helse (+10 mrd, −5 støtte eldre)", next:"22", budgetDelta:+10, supportDelta:-5},
+      C:{label:"C) Lån (0 mrd nå, +1 støtte ansvar, gjeldsrisiko)", next:"8", budgetDelta:0, supportDelta:+1}
+    }
+  },
+
+  "22": {
+    title: "Helsesatsing",
+    text: "Bred helseprioritering: sykehus, sykehjem, psykiatri. Andre områder henger etter. Ta fra klima, fra skole, eller fra kultur?",
+    question: "Hvor henter dere penger?",
+    choices: {
+      A:{label:"A) Klima (+10 mrd, −5 støtte unge)", next:"15", budgetDelta:+10, supportDelta:-5},
+      B:{label:"B) Skole (+10 mrd, −4 støtte foreldre/elever)", next:"16", budgetDelta:+10, supportDelta:-4},
+      C:{label:"C) Kultur (+5 mrd, −3 støtte fellesskap)", next:"14", budgetDelta:+5, supportDelta:-3}
+    }
+  },
+
+  "23": {
+    title: "Gratis busskort",
+    text: "Ungdom jubler. Mindre bilbruk og utslipp, men helse må kuttes. Kutt sykehjem, kutt psykiatri, eller øk skatt?",
+    question: "Hvordan finansieres ordningen?",
+    choices: {
+      A:{label:"A) Kutt sykehjem (+10 mrd, −5 støtte eldre)", next:"4", budgetDelta:+10, supportDelta:-5},
+      B:{label:"B) Kutt psykiatri (+10 mrd, −5 støtte unge)", next:"6", budgetDelta:+10, supportDelta:-5},
+      C:{label:"C) Øk skatt (+30 mrd, +2 støtte rettferdighet)", next:"7", budgetDelta:+30, supportDelta:+2}
+    }
+  },
+
+  "24": {
+    title: "Skolebygg",
+    text: "Ventilasjon/mugg ordnes. Elever friskere. Men lærermangel gjenstår, og klima taper fokus om dere ikke velger klokt.",
+    question: "Hva er neste skritt?",
+    choices: {
+      A:{label:"A) Ansett lærere (−15 mrd, +3 støtte kvalitet)", next:"25", budgetDelta:-15, supportDelta:+3},
+      B:{label:"B) Helse (−20 mrd, +3 støtte bredt)", next:"22", budgetDelta:-20, supportDelta:+3},
+      C:{label:"C) Klima (−25 mrd, +4 støtte unge)", next:"20", budgetDelta:-25, supportDelta:+4}
+    }
+  },
+
+  "25": {
+    title: "Lærere",
+    text: "Flere faglærte, bedre tilpasset opplæring. Gamle bygg er fortsatt dårlige, og kultur presses.",
+    question: "Hva prioriteres nå?",
+    choices: {
+      A:{label:"A) Bygg (−15 mrd, +3 støtte foreldre/elever)", next:"24", budgetDelta:-15, supportDelta:+3},
+      B:{label:"B) Kultur (−5 mrd, +2 støtte fellesskap)", next:"18", budgetDelta:-5, supportDelta:+2},
+      C:{label:"C) La være (0 mrd, −3 støtte)", next:"19", budgetDelta:0, supportDelta:-3}
+    }
+  },
+
+  "26": {
+    title: "Fritidskort kuttet",
+    text: "Ingen gratis aktivitetstilbud. Noen faller utenfor. Forebygging via psykiatri, politi, eller skole?",
+    question: "Hvor legger dere innsatsen?",
+    choices: {
+      A:{label:"A) Psykiatri (−15 mrd, +4 støtte unge)", next:"6", budgetDelta:-15, supportDelta:+4},
+      B:{label:"B) Politi (−8 mrd, +3 støtte trygghet)", next:"17", budgetDelta:-8, supportDelta:+3},
+      C:{label:"C) Skole (−20 mrd, +4 støtte foreldre/elever)", next:"21", budgetDelta:-20, supportDelta:+4}
+    }
+  },
+
+  "27": {
+    title: "Sommerjobber kuttet",
+    text: "Færre unge får arbeidserfaring. Sats på skole (kompetanse), fritid (inkludering), eller gjør ingenting og ta risikoen?",
+    question: "Hva prioriterer dere?",
+    choices: {
+      A:{label:"A) Skole (−20 mrd, +4 støtte foreldre/elever)", next:"21", budgetDelta:-20, supportDelta:+4},
+      B:{label:"B) Fritid (−5 mrd, +2 støtte fellesskap)", next:"18", budgetDelta:-5, supportDelta:+2},
+      C:{label:"C) Ingenting (0 mrd, −4 støtte)", next:"19", budgetDelta:0, supportDelta:-4}
+    }
+  },
+
+  // ===== SLUTTKORT 28–40 =====
+  "28": {
+    title: "Slutt: Velferd i ubalanse",
+    text: "Dere prioriterte velferd ujevnt. Noen grupper fikk mye, andre lite. Samfunnet består, men misnøyen er høy.",
+    question: "Spill på nytt?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "29": {
+    title: "Slutt: Klimakrise i sikte",
+    text: "Klimakutt ble stadig utsatt. Unge mister tillit og presset øker internasjonalt. Det blir dyrere senere.",
+    question: "Prøv igjen med annet fokus?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "30": {
+    title: "Slutt: Omsorgskrise",
+    text: "Eldreomsorg ble nedprioritert for lenge. Pårørende er utslitt, tilliten til dere forsvinner.",
+    question: "Vil dere forsøke en annen balanse?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "31": {
+    title: "Slutt: Utdanningsglipp",
+    text: "Skolen ble for svak: dårlige bygg og for få lærere. Læring og helse falt.",
+    question: "Ny runde – sats annerledes?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "32": {
+    title: "Slutt: Skatteopprør",
+    text: "Skattegrepene deres skapte uro. Noe velferd ble reddet, men næringslivet strittet imot.",
+    question: "Vil dere kalibrere skattene på nytt?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "33": {
+    title: "Slutt: Trygghetssprekk",
+    text: "Kutt i forsvar/politi ga lavere trygghet. Folk blir urolige, og dere taper støtte.",
+    question: "Ny runde med mer balanse?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "34": {
+    title: "Slutt: Psykisk helse sviktet",
+    text: "Unges psykiske helse ble nedprioritert. Frafall øker, og samfunnet taper.",
+    question: "Ta en ny runde med mer forebygging?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "35": {
+    title: "Slutt: Kulturtørke",
+    text: "Kultur/idrett tørket inn. Fellesskap og inkludering falt, og kostnadene kom i andre ender.",
+    question: "Prøv igjen – finn rom til fellesskap?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "36": {
+    title: "Slutt: Økonomisk skvis",
+    text: "Underskuddene ble for store eller gjelden for høy. Dere måtte stramme inn hardt.",
+    question: "Ny runde med strammere budsjettdisiplin?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "37": {
+    title: "Slutt: Politisk kollaps",
+    text: "Oppslutningen falt under sperregrensa. Koalisjonen deres sprakk.",
+    question: "Ny runde – bygg bredere støtte?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "38": {
+    title: "Slutt: God balanse – men skjør",
+    text: "Dere fant en midlertidig balanse. Små sjokk kan velte budsjettet, men dere lærte mye.",
+    question: "Spill igjen for å perfeksjonere balansen?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "39": {
+    title: "Slutt: Ungdomsopprør",
+    text: "Unge følte seg overkjørt. Sosiale medier koker, og nye bevegelser vokser frem.",
+    question: "Ny runde – lytt mer til de unge?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
+    }
+  },
+
+  "40": {
+    title: "Slutt: Jubel i sentrum",
+    text: "Dere balanserte klima, helse og skole godt nok. Ingen fikk alt, men de fleste fikk noe.",
+    question: "Ta en ny runde og se om dere kan gjøre det enda bedre?",
+    choices: {
+      A:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      B:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0},
+      C:{label:"Start på nytt", next:"1", budgetDelta:0, supportDelta:0}
     }
   }
 };
 
-// === State ===
+// --- Enkel «autoslutt»-regel: hvis budsjett < -40 mrd eller støtte <= 0 → sluttkort 36/37
+function maybeAutoEnd() {
+  if (state.budget < -40) { state.current = "36"; return true; }
+  if (state.support <= 0) { state.current = "37"; return true; }
+  if (state.support >= 75 && state.budget >= 0) { state.current = "40"; return true; }
+  return false;
+}
+
 let state = { budget: 100, support: 50, current: "1" };
+
+const elTitle = document.getElementById("cardTitle");
+const elText = document.getElementById("cardText");
+const elQ = document.getElementById("cardQuestion");
+const elA = document.getElementById("btnA");
+const elB = document.getElementById("btnB");
+const elC = document.getElementById("btnC");
+const elBudget = document.getElementById("budget");
+const elSupport = document.getElementById("support");
+const elSupportBar = document.getElementById("supportBar");
 
 function render() {
   const c = CARDS[state.current];
-  document.getElementById("cardTitle").textContent = c.title;
-  document.getElementById("cardText").textContent = c.text;
-  document.getElementById("cardQuestion").textContent = c.question;
-  document.getElementById("btnA").textContent = c.choices.A.label;
-  document.getElementById("btnB").textContent = c.choices.B.label;
-  document.getElementById("btnC").textContent = c.choices.C.label;
-  document.getElementById("budget").textContent = state.budget;
-  document.getElementById("support").textContent = state.support;
-  document.getElementById("supportBar").style.width = Math.max(0, Math.min(100, state.support)) + "%";
-
-  // Enkle sluttbetingelser (juster som du vil)
-  if (state.budget < -20) state.current = "END_BALANSE";
-  if (state.support <= 0) state.current = "END_BALANSE";
+  elTitle.textContent = `Kort ${state.current}: ${c.title}`;
+  elText.textContent = c.text;
+  elQ.textContent = c.question;
+  elA.textContent = c.choices.A.label;
+  elB.textContent = c.choices.B.label;
+  elC.textContent = c.choices.C.label;
+  elBudget.textContent = state.budget;
+  elSupport.textContent = Math.max(0, Math.min(100, state.support));
+  elSupportBar.style.width = Math.max(0, Math.min(100, state.support)) + "%";
 }
 
-function choose(key) {
+function choose(which) {
   const c = CARDS[state.current];
-  const choice = c.choices[key];
-  state.budget += (choice.budgetDelta || 0);
-  state.support += (choice.supportDelta || 0);
-  state.current = choice.next;
+  const ch = c.choices[which];
+  state.budget += (ch.budgetDelta || 0);
+  state.support += (ch.supportDelta || 0);
+  state.current = ch.next;
+  // hvis neste kort er dilemma, rendres direkte; hvis auto-slutt trigges, hopp til sluttkort
+  if (!maybeAutoEnd()) {
+    // frivillig: etter enkelte dilemmaer kan vi rute til passende sluttkort basert på tema
+    // eksempel: fra 15 (klima utsatt) og valg C (ingenting) havner man ofte i klimakrise → 29
+    if (state.current === "19" && state.support < 35) state.current = "28"; // velferd ubalanse
+    if (state.current === "6" && state.support < 35) state.current = "34";  // psykisk helse svikt
+    if (state.current === "4" && state.support < 35) state.current = "30";  // omsorgskrise
+    if (state.current === "15" && state.budget < 0) state.current = "29";   // klimakrise i sikte
+  }
   render();
 }
 
-document.getElementById("btnA").onclick = () => choose("A");
-document.getElementById("btnB").onclick = () => choose("B");
-document.getElementById("btnC").onclick = () => choose("C");
+elA.onclick = () => choose("A");
+elB.onclick = () => choose("B");
+elC.onclick = () => choose("C");
 
 document.addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "r") { state = { budget:100, support:50, current:"1" }; render(); }
@@ -146,4 +564,5 @@ document.addEventListener("keydown", e => {
 
 render();
 </script>
+</body>
 </html>
