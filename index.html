@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="no">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statsbudsjett-spillet</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+  header, footer { opacity:.8; font-size:.9rem }
+  .card { border:1px solid #ddd; border-radius:12px; padding:1.25rem; box-shadow:0 2px 10px rgba(0,0,0,.06) }
+  .title { font-weight:700; font-size:1.15rem; margin-bottom:.5rem }
+  .question { margin:1rem 0 }
+  .choices { display:grid; gap:.5rem; margin-top:1rem }
+  button { padding:.8rem 1rem; border-radius:10px; border:1px solid #ccc; cursor:pointer }
+  .meta { display:flex; gap:1rem; margin:.5rem 0 1rem; flex-wrap:wrap }
+  .tag { background:#f4f4f4; border-radius:999px; padding:.2rem .6rem; font-size:.85rem }
+  .bar { height:10px; background:#eee; border-radius:999px; overflow:hidden }
+  .bar > div { height:100%; background:#4a90e2; width:0% }
+</style>
+<header>
+  <div class="meta">
+    <div class="tag">Budsjett: <span id="budget">100</span> mrd</div>
+    <div class="tag">Støtte: <span id="support">50</span>/100</div>
+  </div>
+  <div class="bar"><div id="supportBar"></div></div>
+</header>
+
+<main class="card">
+  <div class="title" id="cardTitle"></div>
+  <div id="cardText"></div>
+  <div class="question" id="cardQuestion"></div>
+  <div class="choices">
+    <button id="btnA"></button>
+    <button id="btnB"></button>
+    <button id="btnC"></button>
+  </div>
+</main>
+
+<footer>
+  Tips: trykk «R» for å starte på nytt. Lag dine egne kort ved å redigere JSON-en i koden.
+</footer>
+
+<script>
+// === Data ===
+// Hvert kort har: id, title, text, question, choices[A|B|C] med {label, next, budgetDelta, supportDelta}
+const CARDS = {
+  "1": {
+    title: "Sykehjemsplasser",
+    text: "Det er for få sykehjemsplasser. Marie (80) sitter alene mesteparten av dagen. 20 mrd gir verdig alderdom til flere, men betyr mindre penger til psykiatri og ungdom.",
+    question: "Skal dere bruke hele summen, gi halvparten, eller ingenting?",
+    choices: {
+      A: { label: "A) Hele summen (−20 mrd, +4 støtte blant eldre)", next: "2", budgetDelta: -20, supportDelta: +4 },
+      B: { label: "B) Halvparten (−10 mrd, +2 støtte, men ventelister)", next: "3", budgetDelta: -10, supportDelta: +2 },
+      C: { label: "C) Ingenting (0 mrd, −5 støtte blant eldre)", next: "4", budgetDelta: 0, supportDelta: -5 }
+    }
+  },
+  "2": {
+    title: "Psykisk helse under press",
+    text: "Pga. sykehjemssatsing må psykiatrien kutte. Emil (16) må vente lenge på BUP. Kutter dere kultur, lar kuttene stå, eller øker skatt for de rikeste?",
+    question: "Hva prioriterer dere nå?",
+    choices: {
+      A: { label: "A) Ta fra kultur (+0 mrd, −3 støtte blant unge i idrett/kultur)", next: "5", budgetDelta: 0, supportDelta: -3 },
+      B: { label: "B) La kuttene stå (+0 mrd, −6 støtte blant unge)", next: "6", budgetDelta: 0, supportDelta: -6 },
+      C: { label: "C) Øk skatt på de rikeste (+30 mrd, +2 støtte rettferdighet)", next: "7", budgetDelta: +30, supportDelta: +2 }
+    }
+  },
+  "3": {
+    title: "Delvis sykehjem",
+    text: "Noen får plass, andre må vente. ‘Sykehjemslotteri’ i media. Lån, kutt i forsvar, eller snu og satse psykiatri?",
+    question: "Hva gjør dere?",
+    choices: {
+      A: { label: "A) Lån (+0 nå, men senere risiko)", next: "8", budgetDelta: 0, supportDelta: +1 },
+      B: { label: "B) Kutt forsvar (+10 mrd, −4 støtte trygghet)", next: "9", budgetDelta: +10, supportDelta: -4 },
+      C: { label: "C) Psykiatri (+0 mrd, +4 støtte blant unge)", next: "10", budgetDelta: 0, supportDelta: +4 }
+    }
+  },
+  "4": {
+    title: "Ingen nye sykehjem",
+    text: "Eldreomsorgen står stille og det blir protester. Øke hjemmesykepleie, satse ungdomshelse eller gratis skolemat?",
+    question: "Hva prioriterer dere?",
+    choices: {
+      A: { label: "A) Hjemmesykepleie (−8 mrd, +3 støtte eldre)", next: "11", budgetDelta: -8, supportDelta: +3 },
+      B: { label: "B) Ungdomshelse (−6 mrd, +4 støtte unge)", next: "12", budgetDelta: -6, supportDelta: +4 },
+      C: { label: "C) Skolemat (−10 mrd, +3 støtte foreldre)", next: "13", budgetDelta: -10, supportDelta: +3 }
+    }
+  },
+  "5": {
+    title: "Kulturkutt",
+    text: "Idrettslag og korps mister støtte. Forebygger mindre, men frigjør midler. Flytte mer fra klima? Eller ta fra skole?",
+    question: "Skal dere stå i kuttene, ta fra klima, eller ta fra utdanning?",
+    choices: {
+      A: { label: "A) La kuttene stå (+0 mrd, −2 støtte fellesskap)", next: "14", budgetDelta: 0, supportDelta: -2 },
+      B: { label: "B) Ta fra klima (+10 mrd, −6 støtte blant unge/miljø)", next: "15", budgetDelta: +10, supportDelta: -6 },
+      C: { label: "C) Ta fra utdanning (+10 mrd, −5 støtte foreldre/elever)", next: "16", budgetDelta: +10, supportDelta: -5 }
+    }
+  },
+  // … legg inn flere kort her etter samme mal …
+  // Eksempel på et sluttscenario:
+  "END_BALANSE": {
+    title: "Slutt: Balanse",
+    text: "Dere klarte å holde budsjettet over 0 mrd og støtten rundt 50+. Ikke alt ble perfekt, men samfunnet står støtt.",
+    question: "Trykk en tast for å starte på nytt.",
+    choices: {
+      A: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 },
+      B: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 },
+      C: { label: "Spill igjen", next: "1", budgetDelta: 0, supportDelta: 0 }
+    }
+  }
+};
+
+// === State ===
+let state = { budget: 100, support: 50, current: "1" };
+
+function render() {
+  const c = CARDS[state.current];
+  document.getElementById("cardTitle").textContent = c.title;
+  document.getElementById("cardText").textContent = c.text;
+  document.getElementById("cardQuestion").textContent = c.question;
+  document.getElementById("btnA").textContent = c.choices.A.label;
+  document.getElementById("btnB").textContent = c.choices.B.label;
+  document.getElementById("btnC").textContent = c.choices.C.label;
+  document.getElementById("budget").textContent = state.budget;
+  document.getElementById("support").textContent = state.support;
+  document.getElementById("supportBar").style.width = Math.max(0, Math.min(100, state.support)) + "%";
+
+  // Enkle sluttbetingelser (juster som du vil)
+  if (state.budget < -20) state.current = "END_BALANSE";
+  if (state.support <= 0) state.current = "END_BALANSE";
+}
+
+function choose(key) {
+  const c = CARDS[state.current];
+  const choice = c.choices[key];
+  state.budget += (choice.budgetDelta || 0);
+  state.support += (choice.supportDelta || 0);
+  state.current = choice.next;
+  render();
+}
+
+document.getElementById("btnA").onclick = () => choose("A");
+document.getElementById("btnB").onclick = () => choose("B");
+document.getElementById("btnC").onclick = () => choose("C");
+
+document.addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "r") { state = { budget:100, support:50, current:"1" }; render(); }
+});
+
+render();
+</script>
+</html>
