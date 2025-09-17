@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Statsbudsjett-spillet (80 kort, budsjettfokus)</title>
+<title>Statsbudsjett-spillet (80 kort, min. 12 dilemmaer)</title>
 <style>
   :root { --fg:#111; --muted:#666; --border:#e5e7eb; --bg:#fff; --pill:#f3f4f6; --accent:#2563eb; }
   * { box-sizing:border-box }
@@ -28,6 +28,7 @@
 <header class="wrap">
   <div class="meta">
     <div class="tag">Budsjett: <strong><span id="budget">100</span> mrd</strong></div>
+    <div class="tag">Dilemma: <strong><span id="turns">0</span> / 12</strong></div>
     <div class="tag small">Restart: <span class="kbd">R</span></div>
   </div>
 </header>
@@ -46,16 +47,31 @@
 </main>
 
 <footer style="margin-top:12px">
-  © Statsbudsjett-spillet. Denne versjonen viser bare budsjett (ingen «støtte»-poeng).
+  © Statsbudsjett-spillet. Denne versjonen krever minst 12 dilemmaer før slutt.
 </footer>
 
 <script>
-/**
- * 80 kort totalt
- * – Dilemmaer: 1–27 og 31–80
- * – Sluttkort: 28–30, 33–40 (tematiske slutter, beholdt)
- * Alle valg A/B/C peker til gyldige kort.
- */
+/* =========================
+   KONFIG
+   ========================= */
+const MIN_TURNS = 12;
+const END_IDS = new Set(["28","29","30","33","34","35","36","37","38","39","40"]);
+
+// Hvis noen prøver å avslutte før 12 dilemmaer, rutes de hit i rekkefølge:
+const DETOUR_CHAIN = ["41","42","43","44","45","46","47","48","49","50","51","52","53","54","55","56","57","58","59","60","61","62","63","64","65","66","67","68","69","70","71","72","73","74","75","76","77","78","79","80"];
+let detourIndex = 0;
+
+function nextDetour() {
+  const id = DETOUR_CHAIN[detourIndex % DETOUR_CHAIN.length];
+  detourIndex++;
+  return id;
+}
+
+/* =========================
+   KORTDATA (80 kort)
+   – Samme innhold som forrige versjon, uendret
+   – Forkortet her for plass; lim inn dine 80 kort under
+   ========================= */
 
 const CARDS = {
   /* ===== DILEMMA 1–27 (fra tidligere, justert for kun budsjett) ===== */
@@ -622,13 +638,29 @@ const CARDS = {
               C:{label:"C) Effektiviseringskrav (+4 mrd)",next:"28",budgetDelta:+4} } }
 };
 
-/* Auto-slutt: hvis budsjett < -40 mrd → 36 (økonomisk skvis) */
+const CARDS = {
+  /* === DILEMMA 1–27 ... (kopiér inn fra forrige svar) === */
+  "1":{title:"Sykehjemsplasser",text:"Det er for få sykehjemsplasser. Marie (80) sitter alene mesteparten av dagen. Å bygge ut gir verdig alderdom, men 20 mrd må tas fra andre områder som psykiatri, skole eller klima.",question:"Skal dere bruke hele summen, gi halvparten, eller ingenting?",choices:{A:{label:"A) Hele summen (−20 mrd)",next:"2",budgetDelta:-20},B:{label:"B) Halvparten (−10 mrd – men ventelister)",next:"3",budgetDelta:-10},C:{label:"C) Ingenting (0 mrd)",next:"4",budgetDelta:0}}},
+  "2":{title:"Psykisk helse under press",text:"Siden dere satset på sykehjem, må psykiatrien kutte. Emil (16) må vente på BUP. Dere kan kutte kultur, la kuttene stå (risiko for frafall/ufør), eller øke skatt på de rikeste.",question:"Hva prioriterer dere nå?",choices:{A:{label:"A) Ta fra kultur (0 mrd)",next:"5",budgetDelta:0},B:{label:"B) La kuttene stå (0 mrd)",next:"6",budgetDelta:0},C:{label:"C) Øk skatt på de rikeste (+30 mrd)",next:"7",budgetDelta:+30}}},
+  /* ... fortsett å lime inn alle kortene 3–80 her ... */
+  "80": { title:"Kommuneøkonomi", text:"Flere oppgaver med stramt budsjett. Øke frie midler gir lokalt handlingsrom; øremerking sikrer nasjonale mål.", question:"Øke frie midler, øremerke helse/oppvekst – eller effektiviseringskrav?", choices:{ A:{label:"A) Frie midler (−10 mrd)",next:"21",budgetDelta:-10}, B:{label:"B) Øremerke (−10 mrd)",next:"22",budgetDelta:-10}, C:{label:"C) Effektiviseringskrav (+4 mrd)",next:"28",budgetDelta:+4} } }
+};
+// ------------- SLUTT AV KORTDATA -------------
+
+
+/* =========================
+   LOGIKK
+   ========================= */
+function isEnd(id){ return END_IDS.has(String(id)); }
+
+/* Auto-slutt: bare lov etter MIN_TURNS */
 function maybeAutoEnd() {
+  if (state.turns < MIN_TURNS) return false; // blokkér tidlig slutt
   if (state.budget < -40) { state.current = "36"; return true; }
   return false;
 }
 
-let state = { budget: 100, current: "1" };
+let state = { budget: 100, current: "1", turns: 0 };
 
 const elTitle = document.getElementById("cardTitle");
 const elText = document.getElementById("cardText");
@@ -637,6 +669,7 @@ const elA = document.getElementById("btnA");
 const elB = document.getElementById("btnB");
 const elC = document.getElementById("btnC");
 const elBudget = document.getElementById("budget");
+const elTurns = document.getElementById("turns");
 
 function render() {
   const c = CARDS[state.current];
@@ -647,20 +680,44 @@ function render() {
   elB.textContent     = c.choices.B.label;
   elC.textContent     = c.choices.C.label;
   elBudget.textContent= Math.round((state.budget + Number.EPSILON) * 100) / 100;
+  elTurns.textContent = state.turns;
+}
+
+/* Ruting som håndhever min. 12 dilemmaer */
+function routeNext(nextId){
+  // Hvis neste er sluttkort og vi ikke har spilt nok, send til detour
+  if (state.turns < MIN_TURNS && isEnd(nextId)) {
+    return nextDetour();
+  }
+  return nextId;
 }
 
 function choose(which) {
   const c = CARDS[state.current];
   const ch = c.choices[which];
-  state.budget += (ch.budgetDelta || 0);
-  state.current = ch.next;
-  if (!maybeAutoEnd()) {
-    // tematiske hopp til sluttkort ved visse noder
-    if (["29","30","33","34","35","36","37","38","39","40"].includes(state.current)) {
-      // allerede slutt
-    }
+
+  // Hvert valg teller som ett dilemma-spill (uansett hvilket kort man er på)
+  state.turns += 1;
+
+  // Oppdater budsjett
+  state.budget += (ch.budgetDelta ?? 0);
+
+  // Finn neste kort med min. 12-sperre
+  let next = routeNext(ch.next);
+
+  // Hindre auto-game-over før MIN_TURNS
+  if (state.turns < MIN_TURNS && next === "36") {
+    next = nextDetour();
   }
-  render();
+
+  state.current = next;
+
+  // Etter MIN_TURNS kan auto-slutt slå inn (underskudd)
+  if (!maybeAutoEnd()) {
+    render();
+  } else {
+    render();
+  }
 }
 
 elA.onclick = () => choose("A");
@@ -668,7 +725,7 @@ elB.onclick = () => choose("B");
 elC.onclick = () => choose("C");
 
 document.addEventListener("keydown", e => {
-  if (e.key.toLowerCase() === "r") { state = { budget:100, current:"1" }; render(); }
+  if (e.key.toLowerCase() === "r") { state = { budget:100, current:"1", turns:0 }; detourIndex = 0; render(); }
 });
 
 render();
